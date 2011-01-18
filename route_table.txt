@@ -1,0 +1,8 @@
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+skysaw.cs.north *               255.255.255.255 UH    0      0        0 eth0
+129.105.42.0    *               255.255.255.0   U     0      0        0 eth0
+129.105.100.0   *               255.255.255.0   U     0      0        0 eth0
+10.10.0.0       *               255.255.0.0     U     0      0        0 eth0
+127.0.0.0       *               255.0.0.0       U     0      0        0 lo
+default         ssg001.cs.nwu.e 0.0.0.0         UG    0      0        0 eth0
