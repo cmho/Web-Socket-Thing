@@ -41,7 +41,14 @@ int main(int argc,char *argv[])
 
   /* make socket */
   
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  int sock = minet_socket(SOCK_STREAM);
+  
+  if (sock < 0) {
+  	cerr << "Error creating socket.";
+  	minet_perror("Reason: ");
+  	minet_close(sock);
+  	return 0;
+  }
 
   /* get host IP address  */
   /* Hint: use gethostbyname() */
@@ -52,21 +59,36 @@ int main(int argc,char *argv[])
 
   /* set address */
   
-  struct sockaddr_in sin;
+  struct sockaddr_in serv, client;
   
-  memset(&sin, 0, sizeof(sin));
+  memset(&server, 0, sizeof(serv));
   
-  sin.sin_family = AF_INET;
-  sin.sin_port = htons(server_port);
-  sin.sin_addr.s_addr = *(unsigned long *) host->h_addr_list[0];
+  serv.sin_family = AF_INET;
+  serv.sin_port = htons(server_port);
+  serv.sin_addr.s_addr = *(unsigned long *) host->h_addr_list[0];
   
-  int sin_len = sizeof(sin);
+  int serv_len = sizeof(serv);
+  
+  memset(&client, 0, sizeof(client));
+  
+  client.sin_family = AF_INET;
+  client.sin_port = htons(0);
+  client.sin_addr.s_addr = htonl(INADDR_ANY);
+  
+  int client_len = sizeof(client);
 
   /* connect to the server socket */
   
-  if(connect(sock, (struct sockaddr *) &sin, sizeof(sin)) != 0) {
-  	close(sock);
-  	return -1;
+  if(minet_bind(sock, &client) < 0) {
+  	minet_close(sock);
+  	minet_deinit();
+  	return 0;
+  }
+  
+  if (minet_connect(sock, &serv) < 0) {
+  	minet_close(sock);
+  	minet_deinit();
+  	return 0;
   }
 
   /* send request message */
@@ -76,30 +98,45 @@ int main(int argc,char *argv[])
   
   FD_SET(sock, &socks);
   /* Hint: use select(), and ignore timeout for now. */
-  int readsocks;
+  int writesocks, readsocks;
   
-  readsocks = select(sock+1, &socks, (fd_set *) 0, (fd_set *) 0, NULL);
-
-  /* first read loop -- read headers */
+  if (writesocks = minet_write(sock, req, strlen(req)) < 0) {
+  	minet_close(sock);
+  	minet_deinit();
+  	return 0;
+  }
   
-  if (readsocks > 0) {
-  	FD_ISSET(sock, &socks);
-  	int connection;
-  	
-  	connection = accept(sock, (struct sockaddr *) &sin, &sin_len);
-  	if (connection < 0) {
-  		perror("accept");
-  		exit(EXIT_FAILURE);
+  FD_ZERO(&readsocks);
+  FD_SET(sock, &readsocks);
+  
+  maxfds = sock + 1;
+  select(maxfds, &readsocks, NULL, NULL, NULL);
+  
+  int readclient;
+  
+  if (FD_ISSET(sock, &readsocks)) {
+  	while (1) {
+  		if(readclient=minet_read(sock, incoming, 80) < 0) {
+  			minet_close(sock);
+  			minet_deinit();
+  			return 0;
+  		}
+  		
+  		if(readclient == 0) {
+  			break;
+  		}
+  		
+  		cout << incoming << endl;
   	}
   }
   
-  char* buf;
-  
-  int rcount = 0;
-  
-  while (rcount != -1) {
-  	rcount = recv(sock, &buf, BUFSIZE, 0);
-  }
+  // while loop
+  // accept
+  // fork
+  // etc.
+
+  /* first read loop -- read headers */
+ 
   /* examine return code */   
 
 	//Skip "HTTP/1.0"
@@ -113,7 +150,8 @@ int main(int argc,char *argv[])
 
   /*close socket and deinitialize */
   
-  close(sock);
+  minet_close(sock);
+  minet_deinit();
 
   if (ok)
     return 0;
